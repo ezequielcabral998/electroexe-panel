@@ -98,11 +98,97 @@ const n=Number(p.stock)||0;
 return '<tr><td><div class="prod">'+(p.localImage?'<img class="thumb" src="'+p.localImage+'">':'<div class="thumb">📦</div>')+'<div><strong>'+esc(p.name)+'</strong></div></div></td><td>'+esc(p.category)+'</td><td><span class="badge '+(n>0?'ok':'off')+'">'+(n>0?'Stock: '+n:'Sin stock')+'</span></td><td><div class="actions"><button class="iconbtn" title="Sumar 1" onclick="changeStock('+"'"+p.id+"'"+',1)">＋</button><button class="iconbtn" title="Restar 1" onclick="changeStock('+"'"+p.id+"'"+',-1)">−</button></div></td><td><input class="filter" style="width:90px" type="number" min="0" value="'+n+'" onchange="setStock('+"'"+p.id+"'"+',this.value)"></td></tr>';
 }).join('')||'<tr><td colspan="5" style="text-align:center;padding:40px">No encontramos productos.</td></tr>';
 }
-async function syncSalesToSupabase(){const sb=window.electroSupabase;if(!sb||!window.electroDbReady)return false;const {data:sessionData}=await sb.auth.getSession();if(!sessionData?.session)return false;const rows=(sales||[]).map(s=>({id:String(s.id),date:s.date,product_id:String(s.productId),product_name:s.productName||'',qty:Number(s.qty)||0,unit_price:Number(s.unitPrice)||0,total:Number(s.total)||0,profit:Number(s.profit)||0,channel:s.channel||'',payment:s.payment||'',note:s.note||''}));if(!rows.length)return true;const {error}=await sb.from('sales').upsert(rows,{onConflict:'id'});if(error){console.error('Supabase sales sync:',error);return false}return true}
-async function syncMovementsToSupabase(){const sb=window.electroSupabase;if(!sb||!window.electroDbReady)return false;const {data:sessionData}=await sb.auth.getSession();if(!sessionData?.session)return false;const rows=(stockMovements||[]).map(m=>({id:String(m.id),date:m.date,type:m.type||'',product_id:String(m.productId),product_name:m.productName||'',qty:Number(m.qty)||0,stock_after:Number(m.stockAfter)||0,sale_id:m.saleId||null,channel:m.channel||''}));if(!rows.length)return true;const {error}=await sb.from('stock_movements').upsert(rows,{onConflict:'id'});if(error){console.error('Supabase movements sync:',error);return false}return true}
-async function syncSalesFromSupabase(){const sb=window.electroSupabase;if(!sb)return;const {data,error}=await sb.from('sales').select('*').order('created_at',{ascending:false});if(error){console.warn('Supabase sales read:',error.message);return}if(data&&data.length){sales=data.map(s=>({id:s.id,date:s.date,productId:s.product_id,productName:s.product_name,qty:Number(s.qty)||0,unitPrice:Number(s.unit_price)||0,total:Number(s.total)||0,profit:Number(s.profit)||0,channel:s.channel||'',payment:s.payment||'',note:s.note||''}));localStorage.setItem('electroexe_sales',JSON.stringify(sales))}else if(sales.length){await syncSalesToSupabase()}}
-async function syncMovementsFromSupabase(){const sb=window.electroSupabase;if(!sb)return;const {data,error}=await sb.from('stock_movements').select('*').order('created_at',{ascending:false});if(error){console.warn('Supabase movements read:',error.message);return}if(data&&data.length){stockMovements=data.map(m=>({id:m.id,date:m.date,type:m.type,productId:m.product_id,productName:m.product_name,qty:Number(m.qty)||0,stockAfter:Number(m.stock_after)||0,saleId:m.sale_id||'',channel:m.channel||''}));localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements))}else if(stockMovements.length){await syncMovementsToSupabase()}}
-async function syncSalesAndMovementsFromSupabase(){await Promise.all([syncSalesFromSupabase(),syncMovementsFromSupabase()]);renderSales();renderReports()}
+async function syncSalesToSupabase(){
+ const sb=window.electroSupabase;if(!sb||!window.electroDbReady)return false;
+ const {data:sessionData,error:sessionError}=await sb.auth.getSession();
+ if(sessionError||!sessionData?.session)return false;
+ const userId=sessionData.session.user.id;
+ for(const s of (sales||[])){
+  let saleId=String(s.id||'');
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(saleId)){
+   saleId=crypto.randomUUID();s.id=saleId;
+  }
+  const row={
+   id:saleId,
+   sale_date:s.date?new Date(String(s.date)+'T12:00:00').toISOString():new Date().toISOString(),
+   channel:s.channel||'',
+   payment_method:s.payment||'',
+   customer_name:s.customerName||'',
+   customer_phone:s.customerPhone||'',
+   subtotal:Number(s.subtotal??s.total)||0,
+   discount:Number(s.discount)||0,
+   total:Number(s.total)||0,
+   cost_total:Number(s.costTotal??((Number(s.total)||0)-(Number(s.profit)||0)))||0,
+   gross_profit:Number(s.profit)||0,
+   note:s.note||'',
+   created_by:userId
+  };
+  const {error}=await sb.from('sales').upsert(row,{onConflict:'id'});
+  if(error){console.error('Supabase sales sync:',error);window.electroLastSyncError=error.message||String(error);return false}
+  const m=(stockMovements||[]).find(x=>String(x.saleId||'')===String(s.id));
+  if(m){
+   let movementId=String(m.id||'');
+   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(movementId)){movementId=crypto.randomUUID();m.id=movementId}
+   const movementRow={
+    id:movementId,
+    product_id:String(m.productId),
+    movement_type:m.type||'sale',
+    quantity:Number(m.qty)||0,
+    stock_before:Number(m.stockBefore??((Number(m.stockAfter)||0)+(Number(m.qty)||0)))||0,
+    stock_after:Number(m.stockAfter)||0,
+    unit_cost:Number(m.unitCost??0)||0,
+    reference_id:saleId,
+    description:m.description||('Venta: '+(m.productName||s.productName||'')),
+    created_by:userId
+   };
+   const {error:movementError}=await sb.from('stock_movements').upsert(movementRow,{onConflict:'id'});
+   if(movementError){console.error('Supabase movements sync:',movementError);window.electroLastSyncError=movementError.message||String(movementError);return false}
+  }
+ }
+ window.electroLastSyncError='';return true;
+}
+async function syncMovementsToSupabase(){
+ return await syncSalesToSupabase();
+}
+async function syncSalesFromSupabase(){
+ const sb=window.electroSupabase;if(!sb)return;
+ const {data:saleRows,error}=await sb.from('sales').select('*').order('created_at',{ascending:false});
+ if(error){console.warn('Supabase sales read:',error.message);return}
+ const {data:movementRows,error:movementError}=await sb.from('stock_movements').select('*').order('created_at',{ascending:false});
+ if(movementError){console.warn('Supabase movements read:',movementError.message);return}
+ const movements=movementRows||[];
+ if(saleRows&&saleRows.length){
+  sales=saleRows.map(s=>{
+   const m=movements.find(x=>String(x.reference_id||'')===String(s.id));
+   const product=products.find(p=>String(p.id)===String(m?.product_id||''));
+   const qty=Math.abs(Number(m?.quantity)||0);
+   const total=Number(s.total)||0;
+   const profit=Number(s.gross_profit)||0;
+   return {
+    id:s.id,date:(s.sale_date||s.created_at||'').slice(0,10),
+    productId:m?.product_id||'',productName:product?.name||m?.description||'Venta',
+    qty,unitPrice:qty?total/qty:total,total,profit,
+    channel:s.channel||'',payment:s.payment_method||'',note:s.note||'',
+    costTotal:Number(s.cost_total)||0,subtotal:Number(s.subtotal)||total,discount:Number(s.discount)||0
+   };
+  });
+ }else sales=[];
+ stockMovements=movements.map(m=>({
+  id:m.id,date:(m.created_at||'').slice(0,10),type:m.movement_type||'',
+  productId:m.product_id,productName:(products.find(p=>String(p.id)===String(m.product_id))?.name||m.description||''),
+  qty:Number(m.quantity)||0,stockBefore:Number(m.stock_before)||0,
+  stockAfter:Number(m.stock_after)||0,saleId:m.reference_id||'',
+  channel:'',unitCost:Number(m.unit_cost)||0,description:m.description||''
+ }));
+ localStorage.setItem('electroexe_sales',JSON.stringify(sales));
+ localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));
+}
+async function syncMovementsFromSupabase(){
+ return await syncSalesFromSupabase();
+}
+async function syncSalesAndMovementsFromSupabase(){
+ await syncSalesFromSupabase();renderSales();renderReports();
+}
 async function syncSingleProductStock(p){
 const sb=window.electroSupabase;
 if(!sb){window.electroLastSyncError='Supabase no está conectado.';toast('❌ Supabase no está conectado.');return false}
@@ -157,12 +243,12 @@ function renderSaleProducts(){const sel=document.getElementById('saleProduct');i
  const total=qty*price;
  const cost=Number(p.cost)||0;
  const profit=(price-cost)*qty;
- const id='V-'+Date.now();
- const movementId='M-'+Date.now();
+ const id=crypto.randomUUID();
+ const movementId=crypto.randomUUID();
  const previousStock=Number(p.stock)||0;
  const nextStock=previousStock-qty;
- const sale={id,date,productId:p.id,productName:p.name,qty,unitPrice:price,total,profit,channel,payment,note};
- const movement={id:movementId,date,type:'sale',productId:p.id,productName:p.name,qty:-qty,stockAfter:nextStock,saleId:id,channel};
+ const sale={id,date,productId:p.id,productName:p.name,qty,unitPrice:price,total,profit,channel,payment,note,subtotal:total,discount:0,costTotal:cost*qty};
+ const movement={id:movementId,date,type:'sale',productId:p.id,productName:p.name,qty:-qty,stockBefore:previousStock,stockAfter:nextStock,saleId:id,channel,unitCost:cost,description:'Venta: '+p.name};
  p.stock=nextStock;
  if(window.electroDbReady){
    const ok=await syncSingleProductStock(p);
@@ -250,7 +336,7 @@ async function deleteSale(saleId){
   if(window.electroDbReady){
    if(p){const ok=await syncSingleProductStock(p);if(!ok)throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.');}
    const sb=window.electroSupabase;
-   const {error:movDeleteError}=await sb.from('stock_movements').delete().eq('sale_id',String(saleId));if(movDeleteError)throw movDeleteError;
+   const {error:movDeleteError}=await sb.from('stock_movements').delete().eq('reference_id',String(saleId));if(movDeleteError)throw movDeleteError;
    const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',String(saleId));if(salesDeleteError)throw salesDeleteError;
   }
   localStorage.setItem('electroexe_sales',JSON.stringify(sales));localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));localStorage.setItem('electroexe_products',JSON.stringify(products));
