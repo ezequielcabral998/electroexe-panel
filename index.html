@@ -110,15 +110,20 @@ const {data:check,error:checkError}=await sb.from('products').select('stock').eq
 if(checkError||!check||Number(check.stock)!==stockValue){window.electroLastSyncError=checkError?.message||'Supabase no devolvió el stock actualizado.';console.error('Supabase stock verification:',checkError||check);toast('❌ No se pudo verificar el stock en Supabase.');return false}
 window.electroLastSyncError='';return true;
 }
+function saveLocalProductState(){localStorage.setItem('electroexe_products',JSON.stringify(products));updateStats();}
 async function changeStock(id,delta){
 const p=products.find(x=>x.id===id);if(!p)return;
-const previous=Number(p.stock)||0;p.stock=Math.max(0,previous+delta);saveState();renderStock();renderProducts();
-const ok=await syncSingleProductStock(p);if(ok)toast('Stock actualizado y guardado en Supabase.');else{p.stock=previous;saveState();renderStock();renderProducts();}
+const previous=Number(p.stock)||0;const next=Math.max(0,previous+delta);p.stock=next;saveLocalProductState();renderStock();renderProducts();
+const ok=await syncSingleProductStock(p);
+if(ok){toast('Stock actualizado y guardado en Supabase.');}
+else{p.stock=previous;saveLocalProductState();renderStock();renderProducts();}
 }
 async function setStock(id,value){
 const p=products.find(x=>x.id===id);if(!p)return;
-const previous=Number(p.stock)||0;p.stock=Math.max(0,parseInt(value,10)||0);saveState();renderStock();renderProducts();
-const ok=await syncSingleProductStock(p);if(ok)toast('Stock ajustado y guardado en Supabase.');else{p.stock=previous;saveState();renderStock();renderProducts();}
+const previous=Number(p.stock)||0;const next=Math.max(0,parseInt(value,10)||0);p.stock=next;saveLocalProductState();renderStock();renderProducts();
+const ok=await syncSingleProductStock(p);
+if(ok){toast('Stock ajustado y guardado en Supabase.');}
+else{p.stock=previous;saveLocalProductState();renderStock();renderProducts();}
 }
 window.changeStock=changeStock;
 window.setStock=setStock;
