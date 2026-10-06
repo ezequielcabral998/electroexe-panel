@@ -208,10 +208,10 @@ async function clearAllSales(){
     if(!ok)throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.');
    }
    const sb=window.electroSupabase;
-   const {error:salesDeleteError}=await sb.from('sales').delete().neq('id','__electroexe_keep_none__');
-   if(salesDeleteError)throw salesDeleteError;
    const {error:movDeleteError}=await sb.from('stock_movements').delete().neq('id','__electroexe_keep_none__');
    if(movDeleteError)throw movDeleteError;
+   const {error:salesDeleteError}=await sb.from('sales').delete().neq('id','__electroexe_keep_none__');
+   if(salesDeleteError)throw salesDeleteError;
   }
   sales=[];
   stockMovements=[];
