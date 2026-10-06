@@ -99,11 +99,16 @@ return '<tr><td><div class="prod">'+(p.localImage?'<img class="thumb" src="'+p.l
 }).join('')||'<tr><td colspan="5" style="text-align:center;padding:40px">No encontramos productos.</td></tr>';
 }
 async function syncSingleProductStock(p){
-const sb=window.electroSupabase;if(!sb||!window.electroDbReady)return true;
-const {data:sessionData}=await sb.auth.getSession();if(!sessionData?.session){toast('❌ Sesión de Supabase no disponible.');return false}
-const {error}=await sb.from('products').update({stock:Number(p.stock)||0}).eq('id',String(p.id));
+const sb=window.electroSupabase;
+if(!sb){window.electroLastSyncError='Supabase no está conectado.';toast('❌ Supabase no está conectado.');return false}
+const {data:sessionData,error:sessionError}=await sb.auth.getSession();
+if(sessionError||!sessionData?.session){window.electroLastSyncError=sessionError?.message||'No hay una sesión activa de Supabase.';toast('❌ '+window.electroLastSyncError);return false}
+const stockValue=Math.max(0,Number(p.stock)||0);
+const {error}=await sb.from('products').update({stock:stockValue}).eq('id',String(p.id));
 if(error){window.electroLastSyncError=error.message||String(error);console.error('Supabase stock update:',error);toast('❌ No se pudo guardar el stock en Supabase: '+window.electroLastSyncError);return false}
-return true;
+const {data:check,error:checkError}=await sb.from('products').select('stock').eq('id',String(p.id)).maybeSingle();
+if(checkError||!check||Number(check.stock)!==stockValue){window.electroLastSyncError=checkError?.message||'Supabase no devolvió el stock actualizado.';console.error('Supabase stock verification:',checkError||check);toast('❌ No se pudo verificar el stock en Supabase.');return false}
+window.electroLastSyncError='';return true;
 }
 async function changeStock(id,delta){
 const p=products.find(x=>x.id===id);if(!p)return;
