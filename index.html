@@ -145,27 +145,32 @@ updateStats();fillCats();renderProducts();renderSales();renderReports();renderUs
 (function(){
 const SUPABASE_URL='https://pcghxmgzlafjivoxkakb.supabase.co';
 const SUPABASE_KEY='sb_publishable_LcNaM62NUmIefLl4Tb4ycg_jsXC1Mb1';
-const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);window.electroSupabase=supabaseClient;
-const body=document.body, form=document.getElementById('authForm'), error=document.getElementById('authError'), submit=document.getElementById('authSubmit');
+const body=document.body,form=document.getElementById('authForm'),error=document.getElementById('authError'),submit=document.getElementById('authSubmit');
 function showError(message){error.textContent=message;error.style.display='block'}
 function clearError(){error.textContent='';error.style.display='none'}
-let electroEntered=false;async function enter(){if(electroEntered)return;electroEntered=true;body.classList.remove('auth-locked');addLogoutButton();try{if(window.syncProductsFromSupabase)await window.syncProductsFromSupabase();if(window.electroDbReady&&window.syncSalesAndMovementsFromSupabase)await window.syncSalesAndMovementsFromSupabase()}catch(syncError){console.error('Error de sincronización al entrar:',syncError);toast('⚠️ Entraste al panel, pero la sincronización con Supabase tuvo un problema.')}}
-function addLogoutButton(){
-if(document.getElementById('authLogout'))return;
-const topbar=document.querySelector('.topbar');
-if(!topbar)return;
-const btn=document.createElement('button');btn.id='authLogout';btn.className='btn secondary';btn.textContent='Cerrar sesión';
-btn.onclick=async()=>{electroEntered=false;await supabaseClient.auth.signOut();body.classList.add('auth-locked');btn.remove();};
-topbar.appendChild(btn);
-}
+function unlock(){body.classList.remove('auth-locked');addLogoutButton()}
+function addLogoutButton(){if(document.getElementById('authLogout'))return;const topbar=document.querySelector('.topbar');if(!topbar)return;const btn=document.createElement('button');btn.id='authLogout';btn.className='btn secondary';btn.textContent='Cerrar sesión';btn.onclick=async()=>{await supabaseClient.auth.signOut();body.classList.add('auth-locked');btn.remove()};topbar.appendChild(btn)}
+let supabaseClient;
+try{
+ if(!window.supabase||!window.supabase.createClient)throw new Error('No se pudo cargar el módulo de Supabase.');
+ supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+ window.electroSupabase=supabaseClient;
+}catch(e){showError(e.message||'No se pudo iniciar la conexión con Supabase.');return}
+async function enter(){unlock();try{if(window.syncProductsFromSupabase)await window.syncProductsFromSupabase();if(window.electroDbReady&&window.syncSalesAndMovementsFromSupabase)await window.syncSalesAndMovementsFromSupabase()}catch(e){console.error('Sincronización inicial:',e)}}
 form.addEventListener('submit',async function(e){
-e.preventDefault();clearError();submit.disabled=true;submit.textContent='Ingresando...';
-const email=document.getElementById('authEmail').value.trim(), password=document.getElementById('authPassword').value;
-const {error:err}=await supabaseClient.auth.signInWithPassword({email,password});
-if(err){showError(err.message==='Invalid login credentials'?'Correo o contraseña incorrectos.':err.message);submit.disabled=false;submit.textContent='Ingresar';return}
-enter();submit.disabled=false;submit.textContent='Ingresar';
+ e.preventDefault();clearError();submit.disabled=true;submit.textContent='Ingresando...';
+ const email=document.getElementById('authEmail').value.trim(),password=document.getElementById('authPassword').value;
+ try{
+  const result=await Promise.race([
+   supabaseClient.auth.signInWithPassword({email,password}),
+   new Promise((_,reject)=>setTimeout(()=>reject(new Error('La conexión con Supabase está tardando demasiado.')),15000))
+  ]);
+  if(result.error){showError(result.error.message==='Invalid login credentials'?'Correo o contraseña incorrectos.':result.error.message);return}
+  await enter();
+ }catch(err){console.error('Login:',err);showError(err.message||'No se pudo iniciar sesión.')}
+ finally{submit.disabled=false;submit.textContent='Ingresar'}
 });
-supabaseClient.auth.getSession().then(({data})=>{if(data.session)enter()});
+supabaseClient.auth.getSession().then(({data})=>{if(data&&data.session)enter()}).catch(e=>console.error('getSession:',e));
 supabaseClient.auth.onAuthStateChange((_event,session)=>{if(session)enter();else{body.classList.add('auth-locked');const b=document.getElementById('authLogout');if(b)b.remove()}});
 })();
 </script></body></html>
