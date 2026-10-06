@@ -98,13 +98,22 @@ const n=Number(p.stock)||0;
 return '<tr><td><div class="prod">'+(p.localImage?'<img class="thumb" src="'+p.localImage+'">':'<div class="thumb">📦</div>')+'<div><strong>'+esc(p.name)+'</strong></div></div></td><td>'+esc(p.category)+'</td><td><span class="badge '+(n>0?'ok':'off')+'">'+(n>0?'Stock: '+n:'Sin stock')+'</span></td><td><div class="actions"><button class="iconbtn" title="Sumar 1" onclick="changeStock('+"'"+p.id+"'"+',1)">＋</button><button class="iconbtn" title="Restar 1" onclick="changeStock('+"'"+p.id+"'"+',-1)">−</button></div></td><td><input class="filter" style="width:90px" type="number" min="0" value="'+n+'" onchange="setStock('+"'"+p.id+"'"+',this.value)"></td></tr>';
 }).join('')||'<tr><td colspan="5" style="text-align:center;padding:40px">No encontramos productos.</td></tr>';
 }
-function changeStock(id,delta){
-const p=products.find(x=>x.id===id);if(!p)return;
-p.stock=Math.max(0,(Number(p.stock)||0)+delta);saveState();renderStock();renderProducts();toast('Stock actualizado.');
+async function syncSingleProductStock(p){
+const sb=window.electroSupabase;if(!sb||!window.electroDbReady)return true;
+const {data:sessionData}=await sb.auth.getSession();if(!sessionData?.session){toast('❌ Sesión de Supabase no disponible.');return false}
+const {error}=await sb.from('products').update({stock:Number(p.stock)||0}).eq('id',String(p.id));
+if(error){window.electroLastSyncError=error.message||String(error);console.error('Supabase stock update:',error);toast('❌ No se pudo guardar el stock en Supabase: '+window.electroLastSyncError);return false}
+return true;
 }
-function setStock(id,value){
+async function changeStock(id,delta){
 const p=products.find(x=>x.id===id);if(!p)return;
-p.stock=Math.max(0,parseInt(value,10)||0);saveState();renderStock();renderProducts();toast('Stock ajustado.');
+const previous=Number(p.stock)||0;p.stock=Math.max(0,previous+delta);saveState();renderStock();renderProducts();
+const ok=await syncSingleProductStock(p);if(ok)toast('Stock actualizado y guardado en Supabase.');else{p.stock=previous;saveState();renderStock();renderProducts();}
+}
+async function setStock(id,value){
+const p=products.find(x=>x.id===id);if(!p)return;
+const previous=Number(p.stock)||0;p.stock=Math.max(0,parseInt(value,10)||0);saveState();renderStock();renderProducts();
+const ok=await syncSingleProductStock(p);if(ok)toast('Stock ajustado y guardado en Supabase.');else{p.stock=previous;saveState();renderStock();renderProducts();}
 }
 function renderCats(){document.getElementById('catList').innerHTML=cats.map((c,i)=>'<div class="row"><div class="left"><div class="catdot">'+(i+1)+'</div><div><strong>'+esc(c)+'</strong><div class="mut">'+products.filter(p=>p.category===c).length+' productos</div></div></div><div class="actions"><button class="iconbtn" onclick="renameCat('+i+')">✎</button><button class="iconbtn" onclick="deleteCat('+i+')">🗑</button></div></div>').join('')}function addCategory(){const n=prompt('Nombre de la nueva categoría:');if(n&&n.trim()){cats.push(n.trim());saveState();renderCats();toast('Categoría agregada.')}}function renameCat(i){const n=prompt('Nuevo nombre:',cats[i]);if(n&&n.trim()&&n!==cats[i]){const old=cats[i];products.forEach(p=>{if(p.category===old)p.category=n.trim()});cats[i]=n.trim();saveState();renderCats();toast('Categoría actualizada.')}}function deleteCat(i){if(confirm('¿Eliminar la categoría? Los productos no se eliminarán.')){cats.splice(i,1);saveState();renderCats();toast('Categoría eliminada.')}}function addBrand(){const n=prompt('Nombre de la nueva marca:');if(n)toast('Marca agregada en el prototipo: '+n)}document.getElementById('stockSearch')?.addEventListener('input',renderStock);document.getElementById('imageInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=document.getElementById('formImage');im.src=URL.createObjectURL(f);im.style.display='block';toast('Imagen seleccionada.');};document.getElementById('productRows').addEventListener('click',e=>{
 const b=e.target.closest('button[data-action]');
