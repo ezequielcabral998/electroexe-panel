@@ -284,29 +284,95 @@ async function clearAllSales(){
  }
 }
 async function deleteSale(saleId){
- if(!confirm('¿Querés borrar esta venta? El stock se devolverá automáticamente y también se eliminará su movimiento.'))return;
+ if(!confirm('¿Querés borrar esta venta? El stock se devolverá automáticamente y también se eliminarán sus movimientos.'))return;
  if(window.electroSupabase&&!window.electroDbReady)return toast('⏳ Esperá a que termine la sincronización con Supabase.');
- const sale=(sales||[]).find(s=>String(s.id)===String(saleId));
- if(!sale)return toast('❌ No se encontró la venta.');
- const p=products.find(x=>String(x.id)===String(sale.productId));
- if(!p)return toast('❌ No se encontró el producto asociado a esta venta. No se borró la venta.');
+ const saleIdStr=String(saleId);
  const backupProducts=JSON.stringify(products),backupSales=JSON.stringify(sales),backupMovements=JSON.stringify(stockMovements);
  try{
-  if(p)p.stock=(Number(p.stock)||0)+(Math.max(0,Number(sale.qty)||0));
-  sales=sales.filter(s=>String(s.id)!==String(saleId));
-  stockMovements=stockMovements.filter(m=>String(m.saleId||'')!==String(saleId));
-  if(window.electroDbReady){
-   if(p){const ok=await syncSingleProductStock(p);if(!ok)throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.');}
-   const sb=window.electroSupabase;
-   const {error:movDeleteError}=await sb.from('stock_movements').delete().eq('reference_id',String(saleId));if(movDeleteError)throw movDeleteError;
-   const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',String(saleId));if(salesDeleteError)throw salesDeleteError;
+  const sb=window.electroSupabase;
+  let sale=(sales||[]).find(s=>String(s.id)===saleIdStr);
+  let remoteMovement=null;
+
+  if(window.electroDbReady&&sb){
+   const {data:remoteSale,error:saleReadError}=await sb.from('sales').select('*').eq('id',saleIdStr).maybeSingle();
+   if(saleReadError)throw saleReadError;
+   if(!remoteSale&&!sale)throw new Error('La venta no existe en Supabase ni en el panel.');
+   if(remoteSale){
+    const {data:rm,error:rmError}=await sb.from('stock_movements').select('*').eq('reference_id',saleIdStr).order('created_at',{ascending:false}).limit(1).maybeSingle();
+    if(rmError)throw rmError;
+    remoteMovement=rm;
+    sale=sale||{
+     id:remoteSale.id,
+     date:(remoteSale.sale_date||remoteSale.created_at||'').slice(0,10),
+     productId:rm?.product_id||'',
+     productName:rm?.description||'Venta',
+     qty:Math.abs(Number(rm?.quantity)||0),
+     total:Number(remoteSale.total)||0,
+     profit:Number(remoteSale.gross_profit)||0,
+     channel:remoteSale.channel||'',
+     payment:remoteSale.payment_method||'',
+     note:remoteSale.note||'',
+     costTotal:Number(remoteSale.cost_total)||0
+    };
+   }
+   if(!remoteMovement)throw new Error('No se encontró el movimiento de stock asociado. La venta no se borró para evitar alterar el stock incorrectamente.');
   }
-  localStorage.setItem('electroexe_sales',JSON.stringify(sales));localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));localStorage.setItem('electroexe_products',JSON.stringify(products));
-  updateStats();renderSales();renderReports();renderStock();renderProducts();toast('✓ Venta eliminada y stock restaurado.');
+
+  const productId=String(sale?.productId||remoteMovement?.product_id||'');
+  const qty=Math.abs(Number(sale?.qty||remoteMovement?.quantity)||0);
+  if(!productId||qty<=0)throw new Error('No se pudo determinar el producto o la cantidad de la venta. No se borró.');
+  let p=products.find(x=>String(x.id)===productId);
+
+  if(window.electroDbReady&&sb){
+   const {data:remoteProduct,error:productReadError}=await sb.from('products').select('id,stock').eq('id',productId).maybeSingle();
+   if(productReadError)throw productReadError;
+   if(!remoteProduct)throw new Error('No se encontró el producto en Supabase. No se borró la venta.');
+   const stockBefore=Math.max(0,Number(remoteProduct.stock)||0);
+   const stockAfter=stockBefore+qty;
+   const {error:stockError}=await sb.from('products').update({stock:stockAfter}).eq('id',productId);
+   if(stockError)throw stockError;
+   const {data:stockCheck,error:stockCheckError}=await sb.from('products').select('stock').eq('id',productId).maybeSingle();
+   if(stockCheckError||!stockCheck||Number(stockCheck.stock)!==stockAfter)throw new Error(stockCheckError?.message||'Supabase no confirmó la devolución del stock.');
+
+   const {error:movementDeleteError}=await sb.from('stock_movements').delete().eq('reference_id',saleIdStr);
+   if(movementDeleteError){
+    await sb.from('products').update({stock:stockBefore}).eq('id',productId);
+    throw movementDeleteError;
+   }
+
+   const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',saleIdStr);
+   if(salesDeleteError){
+    if(remoteMovement)await sb.from('stock_movements').upsert(remoteMovement,{onConflict:'id'});
+    await sb.from('products').update({stock:stockBefore}).eq('id',productId);
+    throw salesDeleteError;
+   }
+
+   const {data:saleStillThere,error:saleVerifyError}=await sb.from('sales').select('id').eq('id',saleIdStr).maybeSingle();
+   if(saleVerifyError||saleStillThere)throw new Error(saleVerifyError?.message||'Supabase no confirmó la eliminación de la venta.');
+
+   if(p)p.stock=stockAfter;
+   else p={id:productId,stock:stockAfter};
+  }else{
+   if(!p)throw new Error('No se encontró el producto asociado a esta venta.');
+   p.stock=(Number(p.stock)||0)+qty;
+  }
+
+  sales=(sales||[]).filter(s=>String(s.id)!==saleIdStr);
+  stockMovements=(stockMovements||[]).filter(m=>String(m.saleId||m.reference_id||'')!==saleIdStr);
+
+  localStorage.setItem('electroexe_sales',JSON.stringify(sales));
+  localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));
+  localStorage.setItem('electroexe_products',JSON.stringify(products));
+  updateStats();renderSales();renderReports();renderStock();renderProducts();
+  toast('✓ Venta eliminada correctamente. Stock restaurado: +'+qty+' unidad(es).');
  }catch(e){
   products=JSON.parse(backupProducts);sales=JSON.parse(backupSales);stockMovements=JSON.parse(backupMovements);
-  localStorage.setItem('electroexe_sales',JSON.stringify(sales));localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));localStorage.setItem('electroexe_products',JSON.stringify(products));
-  updateStats();renderSales();renderReports();renderStock();renderProducts();console.error('Eliminar venta:',e);toast('❌ No se eliminó la venta: '+(e.message||e));
+  localStorage.setItem('electroexe_products',JSON.stringify(products));
+  localStorage.setItem('electroexe_sales',JSON.stringify(sales));
+  localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));
+  updateStats();renderSales();renderReports();renderStock();renderProducts();
+  console.error('Eliminar venta:',e);
+  toast('❌ No se eliminó la venta: '+(e.message||e));
  }
 }
 window.deleteSale=deleteSale;
