@@ -149,7 +149,7 @@ const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);win
 const body=document.body, form=document.getElementById('authForm'), error=document.getElementById('authError'), submit=document.getElementById('authSubmit');
 function showError(message){error.textContent=message;error.style.display='block'}
 function clearError(){error.textContent='';error.style.display='none'}
-let electroEntered=false;async function enter(){if(electroEntered)return;electroEntered=true;if(window.syncProductsFromSupabase)await window.syncProductsFromSupabase();if(window.electroDbReady)await window.syncSalesAndMovementsFromSupabase();body.classList.remove('auth-locked');addLogoutButton()}
+let electroEntered=false;async function enter(){if(electroEntered)return;electroEntered=true;body.classList.remove('auth-locked');addLogoutButton();try{if(window.syncProductsFromSupabase)await window.syncProductsFromSupabase();if(window.electroDbReady&&window.syncSalesAndMovementsFromSupabase)await window.syncSalesAndMovementsFromSupabase()}catch(syncError){console.error('Error de sincronización al entrar:',syncError);toast('⚠️ Entraste al panel, pero la sincronización con Supabase tuvo un problema.')}}
 function addLogoutButton(){
 if(document.getElementById('authLogout'))return;
 const topbar=document.querySelector('.topbar');
