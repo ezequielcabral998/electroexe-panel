@@ -250,8 +250,8 @@ async function deleteSale(saleId){
   if(window.electroDbReady){
    if(p){const ok=await syncSingleProductStock(p);if(!ok)throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.');}
    const sb=window.electroSupabase;
-   const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',String(saleId));if(salesDeleteError)throw salesDeleteError;
    const {error:movDeleteError}=await sb.from('stock_movements').delete().eq('sale_id',String(saleId));if(movDeleteError)throw movDeleteError;
+   const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',String(saleId));if(salesDeleteError)throw salesDeleteError;
   }
   localStorage.setItem('electroexe_sales',JSON.stringify(sales));localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));localStorage.setItem('electroexe_products',JSON.stringify(products));
   updateStats();renderSales();renderReports();renderStock();renderProducts();toast('✓ Venta eliminada y stock restaurado.');
