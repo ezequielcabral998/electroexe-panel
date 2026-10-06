@@ -39,7 +39,7 @@ body.auth-locked .auth-screen{display:flex}
 <table><thead><tr><th>Producto</th><th>Categoría</th><th>Stock actual</th><th>Movimiento</th><th>Ajuste directo</th></tr></thead>
 <tbody id="stockRows"></tbody></table>
 </div></section><section class="view" id="sales">
-<div class="heading"><div><h1>Ventas</h1><p class="sub">Registrá todas las ventas, sean de la web, del local, por WhatsApp u otro canal.</p></div><button class="btn primary" onclick="newSale()">＋ Nueva venta</button></div>
+<div class="heading"><div><h1>Ventas</h1><p class="sub">Registrá todas las ventas, sean de la web, del local, por WhatsApp u otro canal.</p></div><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn secondary" onclick="clearAllSales()">🗑 Borrar ventas de prueba</button><button class="btn primary" onclick="newSale()">＋ Nueva venta</button></div></div>
 <div class="cards"><div class="stat"><div><div class="l">Ventas de hoy</div><div class="n" id="salesToday">0</div></div><div class="sico">🧾</div></div><div class="stat"><div><div class="l">Facturación del mes</div><div class="n" id="salesTotal">$0</div></div><div class="sico">💰</div></div><div class="stat"><div><div class="l">Productos vendidos</div><div class="n" id="salesItems">0</div></div><div class="sico">📦</div></div><div class="stat"><div><div class="l">Ganancia estimada</div><div class="n" id="salesProfit">$0</div></div><div class="sico">📈</div></div></div>
 <div class="panel" id="saleFormPanel" style="display:none;margin-bottom:18px"><div class="heading"><div><h2 style="margin:0">Registrar venta</h2><p class="sub">La venta descuenta el stock automáticamente y queda guardada en el historial.</p></div><button class="btn secondary" onclick="closeSaleForm()">Cancelar</button></div>
 <div class="formgrid"><div class="field full"><label>🔍 Buscar producto</label><input class="search" id="saleProductSearch" placeholder="Escribí el nombre del producto para encontrarlo rápidamente..." autocomplete="off"><div style="height:8px"></div><label>Producto seleccionado</label><select id="saleProduct"></select></div><div class="field"><label>Cantidad</label><input id="saleQty" type="number" min="1" value="1"></div><div class="field"><label>Canal de venta</label><select id="saleChannel"><option value="local">🏪 Local</option><option value="web">🌐 Página web</option><option value="whatsapp">📱 WhatsApp</option><option value="otro">📦 Otro</option></select></div><div class="field"><label>Medio de pago</label><select id="salePayment"><option value="efectivo">💵 Efectivo</option><option value="transferencia">🏦 Transferencia</option><option value="debito">💳 Débito</option><option value="credito">💳 Crédito</option><option value="otro">Otro</option></select></div><div class="field"><label>Precio de venta por unidad</label><input id="salePrice" type="number" min="0" step="1"></div><div class="field"><label>Fecha de venta</label><input id="saleDate" type="date"></div><div class="field full"><label>Observación (opcional)</label><input id="saleNote" placeholder="Ej.: cliente habitual, pedido, promoción, etc."></div></div>
@@ -208,6 +208,51 @@ function renderSaleProducts(){const sel=document.getElementById('saleProduct');i
    const salesOk=await syncSalesToSupabase();
    const movementsOk=await syncMovementsToSupabase();
    if(!salesOk||!movementsOk)toast('⚠️ Stock guardado en Supabase, pero hubo un problema guardando el historial.');
+ }
+}
+async function clearAllSales(){
+ if(!confirm('⚠️ ATENCIÓN: esto borrará TODAS las ventas y movimientos del panel y devolverá al stock las unidades descontadas por esas ventas.\n\nUsalo solo para limpiar las pruebas. ¿Continuar?'))return;
+ if(window.electroSupabase&&!window.electroDbReady)return toast('⏳ Esperá a que termine la sincronización con Supabase.');
+ const backupProducts=JSON.stringify(products);
+ const backupSales=JSON.stringify(sales);
+ const backupMovements=JSON.stringify(stockMovements);
+ try{
+  const restored=new Map();
+  (sales||[]).forEach(s=>{
+   const p=products.find(x=>String(x.id)===String(s.productId));
+   if(p){
+    p.stock=(Number(p.stock)||0)+(Math.max(0,Number(s.qty)||0));
+    restored.set(String(p.id),p);
+   }
+  });
+  if(window.electroDbReady){
+   for(const p of restored.values()){
+    const ok=await syncSingleProductStock(p);
+    if(!ok)throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.');
+   }
+   const sb=window.electroSupabase;
+   const {error:salesDeleteError}=await sb.from('sales').delete().neq('id','__electroexe_keep_none__');
+   if(salesDeleteError)throw salesDeleteError;
+   const {error:movDeleteError}=await sb.from('stock_movements').delete().neq('id','__electroexe_keep_none__');
+   if(movDeleteError)throw movDeleteError;
+  }
+  sales=[];
+  stockMovements=[];
+  localStorage.setItem('electroexe_sales','[]');
+  localStorage.setItem('electroexe_stock_movements','[]');
+  localStorage.setItem('electroexe_products',JSON.stringify(products));
+  updateStats();renderSales();renderReports();renderStock();renderProducts();
+  toast('✓ Ventas borradas y stock restaurado. Ya podés hacer la prueba con 1 venta.');
+ }catch(e){
+  products=JSON.parse(backupProducts);
+  sales=JSON.parse(backupSales);
+  stockMovements=JSON.parse(backupMovements);
+  localStorage.setItem('electroexe_products',JSON.stringify(products));
+  localStorage.setItem('electroexe_sales',JSON.stringify(sales));
+  localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));
+  updateStats();renderSales();renderReports();renderStock();renderProducts();
+  console.error('Borrar ventas:',e);
+  toast('❌ No se borraron las ventas: '+(e.message||e));
  }
 }
 function renderSales(){const body=document.getElementById('salesRows');if(!body)return;const q=(document.getElementById('salesSearch')?.value||'').toLowerCase();const ch=document.getElementById('salesChannelFilter')?.value||'';const period=document.getElementById('salesPeriod')?.value||'month';const arr=salesInPeriod(period).filter(s=>(!q||((s.productName||'')+' '+(s.channel||'')+' '+(s.payment||'')+' '+(s.id||'')).toLowerCase().includes(q))&&(!ch||s.channel===ch));body.innerHTML=arr.map(s=>'<tr><td>'+s.date+'</td><td><strong>'+esc(s.productName)+'</strong><div class="mut">'+esc(s.id)+'</div></td><td>'+s.qty+'</td><td>'+saleChannelLabel(s.channel)+'</td><td>'+paymentLabel(s.payment)+'</td><td><strong>'+money(s.total)+'</strong></td><td><span class="badge ok">Registrada</span></td></tr>').join('')||'<tr><td colspan="7" style="text-align:center;padding:40px">No hay ventas para el período seleccionado.</td></tr>';updateSalesStats()}function renderReports(){const period=document.getElementById('reportPeriod')?.value||'month';const arr=salesInPeriod(period);const revenue=arr.reduce((a,s)=>a+Number(s.total||0),0);const profit=arr.reduce((a,s)=>a+Number(s.profit||0),0);const now=new Date();const exp=expenses.filter(e=>{const d=new Date(e.date+'T12:00:00');if(period==='all')return true;if(period==='month')return d.getFullYear()===now.getFullYear()&&d.getMonth()===now.getMonth();if(period==='year')return d.getFullYear()===now.getFullYear();if(period==='last7'){const start=new Date(now);start.setHours(0,0,0,0);start.setDate(start.getDate()-6);return d>=start&&d<=now}return false}).reduce((a,e)=>a+Number(e.amount||0),0);if(document.getElementById('reportExpenses'))document.getElementById('reportExpenses').textContent=money(exp);if(document.getElementById('reportNet'))document.getElementById('reportNet').textContent=money(profit-exp);const units=arr.reduce((a,s)=>a+Number(s.qty||0),0);if(document.getElementById('reportRevenue'))document.getElementById('reportRevenue').textContent=money(revenue);if(document.getElementById('reportUnits'))document.getElementById('reportUnits').textContent=units;const channels={local:0,web:0,whatsapp:0,otro:0};const payments={efectivo:0,transferencia:0,debito:0,credito:0,otro:0};arr.forEach(s=>{channels[s.channel]=(channels[s.channel]||0)+Number(s.total||0);payments[s.payment]=(payments[s.payment]||0)+Number(s.total||0)});const chBox=document.getElementById('reportChannels');const payBox=document.getElementById('reportPayments');if(chBox)chBox.innerHTML=Object.entries(channels).filter(x=>x[1]>0).map(x=>'<div class="row"><div><strong>'+saleChannelLabel(x[0])+'</strong></div><strong>'+money(x[1])+'</strong></div>').join('')||'<div class="mut">Todavía no hay ventas.</div>';if(payBox)payBox.innerHTML=Object.entries(payments).filter(x=>x[1]>0).map(x=>'<div class="row"><div><strong>'+paymentLabel(x[0])+'</strong></div><strong>'+money(x[1])+'</strong></div>').join('')||'<div class="mut">Todavía no hay ventas.</div>'}document.getElementById('stockSearch')?.addEventListener('input',renderStock);document.getElementById('salesSearch')?.addEventListener('input',renderSales);document.getElementById('saleProductSearch')?.addEventListener('input',renderSaleProducts);document.getElementById('saleProduct')?.addEventListener('change',()=>{const p=products.find(x=>x.id===document.getElementById('saleProduct').value);if(p)document.getElementById('salePrice').value=Number(p.price||0)});document.getElementById('imageInput').onchange=e=>{const f=e.target.files[0];if(!f)return;const im=document.getElementById('formImage');im.src=URL.createObjectURL(f);im.style.display='block';toast('Imagen seleccionada.');};document.getElementById('productRows').addEventListener('click',e=>{const b=e.target.closest('button[data-action]');if(!b)return;const id=b.dataset.id;if(b.dataset.action==='edit')editProduct(id);if(b.dataset.action==='toggle')toggleProduct(id);if(b.dataset.action==='delete')deleteProduct(id);});
