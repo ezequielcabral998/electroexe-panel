@@ -278,7 +278,7 @@ async function clearAllSales(){
    for(const p of restored.values()){if(!await syncSingleProductStock(p))throw new Error(window.electroLastSyncError||'No se pudo restaurar el stock en Supabase.')}
    const sb=window.electroSupabase;
    const {error:movDeleteError}=await sb.from('stock_movements').delete().eq('movement_type','sale');if(movDeleteError)throw movDeleteError;
-   const {error:salesDeleteError}=await sb.from('sales').delete().neq('id','00000000-0000-0000-0000-000000000000');if(salesDeleteError)throw salesDeleteError;
+   const {error:salesDeleteError}=await sb.from('sales').delete().neq('id','00000000-0000-0000-0000-000000000000');if(salesDeleteError)throw new Error('Borrar venta: '+(salesDeleteError.message||salesDeleteError));
   }
   sales=[];stockMovements=stockMovements.filter(m=>String(m.type||'')!=='sale');
   localStorage.setItem('electroexe_sales','[]');localStorage.setItem('electroexe_stock_movements',JSON.stringify(stockMovements));localStorage.setItem('electroexe_products',JSON.stringify(products));
@@ -301,11 +301,11 @@ async function deleteSale(saleId){
 
   if(window.electroDbReady&&sb){
    const {data:remoteSale,error:saleReadError}=await sb.from('sales').select('*').eq('id',saleIdStr).maybeSingle();
-   if(saleReadError)throw saleReadError;
+   if(saleReadError)throw new Error('Leer venta: '+(saleReadError.message||saleReadError));
    if(!remoteSale&&!sale)throw new Error('La venta no existe en Supabase ni en el panel.');
    if(remoteSale){
     const {data:rm,error:rmError}=await sb.from('stock_movements').select('*').eq('reference_id',saleIdStr).order('created_at',{ascending:false}).limit(1).maybeSingle();
-    if(rmError)throw rmError;
+    if(rmError)throw new Error('Leer movimiento: '+(rmError.message||rmError));
     remoteMovement=rm;
     sale=sale||{
      id:remoteSale.id,
@@ -331,19 +331,19 @@ async function deleteSale(saleId){
 
   if(window.electroDbReady&&sb){
    const {data:remoteProduct,error:productReadError}=await sb.from('products').select('id,stock').eq('id',productId).maybeSingle();
-   if(productReadError)throw productReadError;
+   if(productReadError)throw new Error('Leer producto: '+(productReadError.message||productReadError));
    if(!remoteProduct)throw new Error('No se encontró el producto en Supabase. No se borró la venta.');
    const stockBefore=Math.max(0,Number(remoteProduct.stock)||0);
    const stockAfter=stockBefore+qty;
    const {error:stockError}=await sb.from('products').update({stock:stockAfter}).eq('id',productId);
-   if(stockError)throw stockError;
+   if(stockError)throw new Error('Restaurar stock: '+(stockError.message||stockError));
    const {data:stockCheck,error:stockCheckError}=await sb.from('products').select('stock').eq('id',productId).maybeSingle();
    if(stockCheckError||!stockCheck||Number(stockCheck.stock)!==stockAfter)throw new Error(stockCheckError?.message||'Supabase no confirmó la devolución del stock.');
 
    const {error:movementDeleteError}=await sb.from('stock_movements').delete().eq('reference_id',saleIdStr);
    if(movementDeleteError){
     await sb.from('products').update({stock:stockBefore}).eq('id',productId);
-    throw movementDeleteError;
+    throw new Error('Borrar movimiento: '+(movementDeleteError.message||movementDeleteError));
    }
 
    const {error:salesDeleteError}=await sb.from('sales').delete().eq('id',saleIdStr);
@@ -354,7 +354,7 @@ async function deleteSale(saleId){
    }
 
    const {data:saleStillThere,error:saleVerifyError}=await sb.from('sales').select('id').eq('id',saleIdStr).maybeSingle();
-   if(saleVerifyError||saleStillThere)throw new Error(saleVerifyError?.message||'Supabase no confirmó la eliminación de la venta.');
+   if(saleVerifyError||saleStillThere)throw new Error('Verificar borrado: '+(saleVerifyError?.message||'Supabase no confirmó la eliminación de la venta.'));
 
    if(p)p.stock=stockAfter;
    else p={id:productId,stock:stockAfter};
