@@ -503,7 +503,7 @@ window.webEditorLive=function(){
  if(key==='heroImage'){const box=el('mockImage');box.style.backgroundColor=d.bg;box.innerHTML=d.imageUrl?'<img src="'+d.imageUrl.replace(/"/g,'&quot;')+'" style="max-width:100%;max-height:260px;object-fit:contain;border-radius:10px"></img>':'<span>🖼️<br>Imagen principal</span>'}
  localStorage.setItem(WEB_KEY,JSON.stringify(webData));
 };
-window.webEditorLoad=function(){webData=JSON.parse(localStorage.getItem(WEB_KEY)||'null')||defaults;webEditorSelect();toast('Editor cargado.')}
+window.webEditorLoad=async function(){webData=JSON.parse(localStorage.getItem(WEB_KEY)||'null')||defaults;if(window.electroSupabase&&window.electroDbReady){try{const r=await window.electroSupabase.from('site_content').select('content').eq('id','homepage').maybeSingle();if(!r.error&&r.data&&r.data.content){webData=Object.assign({},defaults,r.data.content);localStorage.setItem(WEB_KEY,JSON.stringify(webData));}}catch(e){console.warn('Editor web: no se pudo cargar desde Supabase.',e)}}webEditorSelect();toast('Editor cargado.')}
 window.webEditorSave=async function(){
  localStorage.setItem(WEB_KEY,JSON.stringify(webData));
  if(window.electroSupabase&&window.electroDbReady){
