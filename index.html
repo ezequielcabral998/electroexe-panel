@@ -231,12 +231,13 @@ function renderSaleProducts(){const sel=document.getElementById('saleProduct');i
  const sb=window.electroSupabase;if(!sb||!window.electroDbReady){window.electroLastSyncError='Supabase no está listo.';return false}
  const {data:sessionData,error:sessionError}=await sb.auth.getSession();if(sessionError||!sessionData?.session){window.electroLastSyncError=sessionError?.message||'No hay una sesión activa de Supabase.';return false}
  const userId=sessionData.session.user.id,saleId=String(sale.id);
+ const fmtErr=e=>e?((e.message||e.code||'Error desconocido')+(e.code?' [codigo '+e.code+']':'')+(e.details?' — '+e.details:'')+(e.hint?' — '+e.hint:'')):'';
  const saleRow={id:saleId,sale_date:sale.date?new Date(String(sale.date)+'T12:00:00').toISOString():new Date().toISOString(),channel:sale.channel||'',payment_method:sale.payment||'',customer_name:sale.customerName||'',customer_phone:sale.customerPhone||'',subtotal:Number(sale.subtotal??sale.total)||0,discount:Number(sale.discount)||0,total:Number(sale.total)||0,cost_total:Number(sale.costTotal??((Number(sale.total)||0)-(Number(sale.profit)||0)))||0,gross_profit:Number(sale.profit)||0,note:sale.note||'',created_by:userId};
- const {data:savedSale,error:saleError}=await sb.from('sales').upsert(saleRow,{onConflict:'id'}).select('id').maybeSingle();
- if(saleError||!savedSale){window.electroLastSyncError=saleError?.message||'Supabase no confirmó que la venta se haya guardado en sales.';console.error('Supabase sales save:',saleError||savedSale);return false}
+ const {error:saleError}=await sb.from('sales').upsert(saleRow,{onConflict:'id'});
+ if(saleError){window.electroLastSyncError='sales: '+fmtErr(saleError);console.error('Supabase sales save:',saleError);return false}
  const movementRow={id:String(movement.id),product_id:String(movement.productId),movement_type:'sale',quantity:Number(movement.qty)||0,stock_before:Number(movement.stockBefore)||0,stock_after:Number(movement.stockAfter)||0,unit_cost:Number(movement.unitCost)||0,reference_id:saleId,description:movement.description||('Venta: '+(movement.productName||sale.productName||'')),created_by:userId};
- const {data:savedMovement,error:movementError}=await sb.from('stock_movements').upsert(movementRow,{onConflict:'id'}).select('id').maybeSingle();
- if(movementError||!savedMovement){await sb.from('sales').delete().eq('id',saleId);window.electroLastSyncError=movementError?.message||'Supabase no confirmó que el movimiento de stock se haya guardado.';console.error('Supabase movement save:',movementError||savedMovement);return false}
+ const {error:movementError}=await sb.from('stock_movements').upsert(movementRow,{onConflict:'id'});
+ if(movementError){await sb.from('sales').delete().eq('id',saleId);window.electroLastSyncError='stock_movements: '+fmtErr(movementError);console.error('Supabase movement save:',movementError);return false}
  window.electroLastSyncError='';return true;
 }
 async function saveSale(){
@@ -252,10 +253,12 @@ async function saveSale(){
  if(window.electroDbReady){
   if(!await syncSingleProductStock(p)){p.stock=previousStock;return toast('❌ La venta no se confirmó porque Supabase no pudo guardar el nuevo stock.')}
   if(!await syncSingleSaleToSupabase(sale,movement)){
+   const saleSyncError=window.electroLastSyncError||'Error desconocido al guardar la venta.';
    p.stock=previousStock;const rollbackOk=await syncSingleProductStock(p);
    await window.electroSupabase.from('stock_movements').delete().eq('reference_id',String(id));await window.electroSupabase.from('sales').delete().eq('id',String(id));
    if(!rollbackOk)console.error('Rollback de stock falló:',window.electroLastSyncError);
-   return toast('❌ La venta no se confirmó. Se revirtió el stock porque no se pudo guardar el historial.');
+   window.electroLastSyncError=saleSyncError;
+   return toast('❌ No se pudo guardar la venta en Supabase: '+saleSyncError);
   }
  }
  sales.unshift(sale);stockMovements.unshift(movement);
