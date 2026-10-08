@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Electroexe · Editor Web</title>
+<style>
+:root{--nav:#07142f;--blue:#1e6cff;--bg:#f4f7fc;--tx:#17213a;--mut:#6b7691;--line:#dfe6f1}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font-family:Segoe UI,system-ui,Arial,sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer}
+.app{display:grid;grid-template-columns:250px 1fr;min-height:100vh}.side{background:var(--nav);color:#fff;padding:20px;position:sticky;top:0;height:100vh;overflow:auto}.side h2{margin:0 0 4px}.side small{color:#aebddd}.side button{width:100%;text-align:left;border:0;background:transparent;color:#d9e4fb;padding:11px;border-radius:9px;margin-top:4px}.side button.active,.side button:hover{background:#1767df;color:#fff}
+.main{min-width:0}.top{height:68px;background:#fff;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;padding:0 22px;position:sticky;top:0;z-index:5}.btn{border:1px solid var(--line);background:#fff;padding:9px 13px;border-radius:8px;font-weight:800}.primary{background:var(--blue);color:#fff;border-color:var(--blue)}.content{padding:20px;max-width:1500px;margin:auto}.view{display:none}.view.active{display:block}.grid{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px}.panel{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px}.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px}.canvas-wrap{background:#e7edf6;border-radius:12px;padding:18px;overflow:auto}.canvas{background:#fff;max-width:1100px;min-height:900px;margin:auto;box-shadow:0 15px 45px #11224418}.canvas.mobile{max-width:390px}.site-head{height:65px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #e9edf4}.site-nav{display:flex;gap:20px;font-size:13px;font-weight:800}.hero{min-height:380px;padding:44px;display:grid;grid-template-columns:1.1fr .9fr;gap:28px;align-items:center;background:linear-gradient(135deg,#f6f8fc,#eaf2ff)}.hero h1{margin:0;line-height:1.05}.hero p{font-weight:900}.hero-img{min-height:270px;border:2px dashed #bfcde2;border-radius:15px;display:grid;place-items:center;overflow:hidden}.hero-img img{width:100%;height:100%;object-fit:contain}.services{text-align:center;padding:44px 24px;border-top:1px solid #edf1f6}.products{padding:44px 24px;background:#f7f9fd}.products h2{text-align:center}.cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}.card{background:#fff;border:1px solid #e1e6ef;border-radius:12px;padding:12px;min-width:0}.card img{width:100%;height:150px;object-fit:contain;background:#f7f8fb;border-radius:9px}.card h3{font-size:16px;margin:10px 0 6px}.card .desc{font-size:12px;color:#68748d;min-height:48px}.card .price{font-size:20px;font-weight:900;margin:9px 0}.card button{width:100%;border:0;background:#ffbf19;padding:10px;border-radius:8px;font-weight:900}.footer{background:#07142f;color:#fff;padding:30px;text-align:center}.footer a{color:#fff}.selectable{outline:2px solid transparent;outline-offset:3px;cursor:pointer;border-radius:5px}.selectable:hover{outline-color:#78a9ff}.selected{outline:2px solid var(--blue);outline-offset:4px;background:#1e6cff12}.handle{position:absolute;width:13px;height:13px;right:-7px;bottom:-7px;background:var(--blue);border:2px solid #fff;border-radius:50%;display:none;cursor:nwse-resize}.selected .handle{display:block}.prop h3{margin-top:0}.field{margin:10px 0}.field label{display:block;font-size:12px;font-weight:800;margin-bottom:5px}.field input,.field textarea,.field select{width:100%;padding:9px;border:1px solid var(--line);border-radius:8px}.field textarea{min-height:90px}.hint{font-size:12px;color:var(--mut);line-height:1.45}.product-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:12px}.product-item{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.product-item img{width:100%;height:130px;object-fit:contain;background:#f7f8fb;border-radius:8px}.product-item strong{display:block;margin-top:8px}.product-actions{display:flex;gap:6px;margin-top:8px}.product-actions button{flex:1}.status{font-size:11px;padding:4px 7px;border-radius:99px;background:#e7faef;color:#13834b;display:inline-block}.status.off{background:#f0f2f6;color:#6c7485}
+@media(max-width:900px){.app{grid-template-columns:1fr}.side{position:static;height:auto}.grid{grid-template-columns:1fr}.cards{grid-template-columns:repeat(2,minmax(0,1fr))}.hero{grid-template-columns:1fr;padding:28px}.site-nav{display:none}}
+@media(max-width:480px){.cards{grid-template-columns:1fr}.content{padding:10px}}
+</style>
+</head>
+<body>
+<div class="app">
+<aside class="side">
+<h2>ELECTROEXE</h2><small>Editor Web visual</small>
+<button class="active" data-tab="visual">🖥️ Editor visual</button>
+<button data-tab="products">📦 Productos</button>
+<button data-tab="settings">⚙️ Configuración</button>
+</aside>
+<main class="main">
+<header class="top"><strong id="title">Editor Web visual</strong><div><button class="btn" id="devicePc">PC</button> <button class="btn" id="deviceMobile">Celular</button> <button class="btn primary" id="save">💾 Guardar cambios</button></div></header>
+<div class="content">
+<section class="view active" id="visual">
+<div class="grid">
+<div class="panel">
+<div class="toolbar"><span class="hint">Clic para seleccionar · <b>doble clic</b> para editar texto · arrastrá el punto azul para cambiar tamaño.</span></div>
+<div class="canvas-wrap"><div class="canvas" id="canvas">
+<header class="site-head">
+<div class="selectable" data-key="logo">⚡ ELECTROEXE<span class="handle"></span></div>
+<nav class="site-nav"><span>Inicio</span><span>Productos</span><span>Contacto</span></nav>
+</header>
+<section class="hero">
+<div>
+<div class="selectable" data-key="heroTitle"><h1>REPARACION DE CELULARES Y VENTA DE ACCESORIOS</h1><span class="handle"></span></div>
+<div class="selectable" data-key="heroSubtitle"><p>MÁS DE 5 AÑOS DE EXPERIENCIA</p><span class="handle"></span></div>
+<div class="selectable" data-key="heroButton"><button>VER PRODUCTOS</button><span class="handle"></span></div>
+</div>
+<div class="selectable hero-img" data-key="heroImage"><span>🖼️ Imagen principal</span><span class="handle"></span></div>
+</section>
+<section class="services">
+<div class="selectable" data-key="serviceTitle"><h2>Reparamos Android y iPhone.</h2><span class="handle"></span></div>
+<div class="selectable" data-key="serviceText"><p>respuestos de alta calidad y con garantia.</p><span class="handle"></span></div>
+<div class="selectable" data-key="serviceButton"><button>PEDIR PRESUPUESTO</button><span class="handle"></span></div>
+</section>
+<section class="products"><div class="selectable" data-key="productsTitle"><h2>PRODUCTOS</h2><span class="handle"></span></div><div class="cards" id="previewCards"></div></section>
+<footer class="footer">
+<div class="selectable" data-key="address"><a href="#">Av. Remigio López 2620</a><span class="handle"></span></div>
+<div class="selectable" data-key="hours"><span>Lunes a sábado · 09:00 - 21:00</span><span class="handle"></span></div>
+</footer>
+</div></div>
+</div>
+<aside class="panel prop">
+<h3>Elemento seleccionado</h3>
+<div class="field"><label>Elemento</label><select id="element"></select></div>
+<div class="field"><label>Texto</label><textarea id="text"></textarea></div>
+<div class="field"><label>Tamaño de letra (px)</label><input id="fontSize" type="number" min="8" max="120"></div>
+<div class="field"><label>Ancho (px)</label><input id="width" type="number" min="30" max="1200"></div>
+<div class="field"><label>Alto (px)</label><input id="height" type="number" min="20" max="900"></div>
+<div class="field"><label>Alineación</label><select id="align"><option>left</option><option>center</option><option>right</option></select></div>
+<div class="field"><label>Color del texto</label><input id="color" type="color"></div>
+<div class="field"><label>Color de fondo</label><input id="bg" type="color"></div>
+<div class="field"><label>Enlace</label><input id="link" placeholder="https://..."></div>
+<div class="field" id="imageField"><label>Imagen URL</label><input id="imageUrl" placeholder="https://..."></div>
+<div class="field"><label>Subir imagen</label><input id="imageFile" type="file" accept="image/*"></div>
+<div class="hint">Los cambios se aplican al instante. Para texto, también podés hacer doble clic directamente sobre el elemento.</div>
+</aside>
+</div>
+</section>
+<section class="view" id="products">
+<div class="panel">
+<h2>Productos de la web</h2><p class="hint">Acá podés modificar nombre, descripción, precio, categoría, foto, publicación y diseño de las tarjetas.</p>
+<div class="toolbar"><input id="productSearch" class="field" placeholder="🔎 Buscar producto..." style="flex:1;min-width:220px;padding:10px;border:1px solid var(--line);border-radius:8px"><button class="btn primary" id="addProduct">＋ Agregar producto</button></div>
+<div class="product-list" id="productList"></div>
+</div>
+</section>
+<section class="view" id="settings"><div class="panel"><h2>Cómo editar</h2><p class="hint">1. Seleccioná cualquier elemento. 2. Doble clic para escribir. 3. Cambiá tamaño, ancho o alto desde la derecha. 4. En las tarjetas de productos podés editar cada producto. 5. Guardá y los datos quedan en Supabase.</p></div></section>
+</div></main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+const SUPABASE_URL='https://pcghxmgzlafjivoxkakb.supabase.co';
+const SUPABASE_KEY='sb_publishable_LcNaM62NUmIefLl4Tb4ycg_jsXC1Mb1';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+const $=id=>document.getElementById(id);
+const SITE_ID='homepage';
+let products=[], selected='heroTitle', editingProduct=null, styles={};
+const defaults={
+ logo:{text:'⚡ ELECTROEXE',fontSize:18,width:180,height:36,align:'left',color:'#07142f',bg:'#ffffff',link:''},
+ heroTitle:{text:'REPARACION DE CELULARES Y VENTA DE ACCESORIOS',fontSize:38,width:560,height:100,align:'left',color:'#17213a',bg:'#ffffff',link:''},
+ heroSubtitle:{text:'MÁS DE 5 AÑOS DE EXPERIENCIA',fontSize:24,width:500,height:50,align:'left',color:'#17213a',bg:'#ffffff',link:''},
+ heroButton:{text:'VER PRODUCTOS',fontSize:16,width:180,height:46,align:'center',color:'#ffffff',bg:'#1e6cff',link:'#productos'},
+ heroImage:{text:'',fontSize:16,width:470,height:270,align:'center',color:'#17213a',bg:'#ffffff',link:'',imageUrl:''},
+ serviceTitle:{text:'Reparamos Android y iPhone.',fontSize:30,width:700,height:50,align:'center',color:'#17213a',bg:'#ffffff',link:''},
+ serviceText:{text:'respuestos de alta calidad y con garantia.',fontSize:18,width:700,height:45,align:'center',color:'#6b7691',bg:'#ffffff',link:''},
+ serviceButton:{text:'PEDIR PRESUPUESTO',fontSize:16,width:190,height:44,align:'center',color:'#fff',bg:'#07142f',link:''},
+ productsTitle:{text:'PRODUCTOS',fontSize:30,width:700,height:50,align:'center',color:'#17213a',bg:'#ffffff',link:''},
+ address:{text:'Av. Remigio López 2620',fontSize:16,width:320,height:35,align:'center',color:'#fff',bg:'#07142f',link:'https://maps.google.com/?q=Av.+Remigio+López+2620'},
+ hours:{text:'Lunes a sábado · 09:00 - 21:00',fontSize:13,width:320,height:30,align:'center',color:'#b8c7e5',bg:'#07142f',link:''}
+};
+const clone=o=>JSON.parse(JSON.stringify(o));
+function safe(v){return String(v||'').replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))}
+function getStyle(k){return Object.assign({},defaults[k]||{},styles[k]||{})}
+function applyStyle(k){
+ const n=document.querySelector('[data-key="'+k+'"]'); if(!n)return; const d=getStyle(k);
+ n.style.fontSize=d.fontSize+'px';n.style.width=d.width+'px';n.style.height=d.height+'px';n.style.textAlign=d.align;n.style.color=d.color;n.style.backgroundColor=d.bg;
+ if(k==='heroImage'){n.innerHTML=d.imageUrl?'<img src="'+safe(d.imageUrl)+'" alt="Imagen principal"><span class="handle"></span>':'<span>🖼️ Imagen principal</span><span class="handle"></span>';n.querySelector('img')?.style.setProperty('width','100%');n.querySelector('img')?.style.setProperty('height','100%')}
+ else {const t=n.querySelector('h1,h2,h3,p,button,a')||n;t.textContent=d.text||'';if(t.tagName==='A')t.href=d.link||'#'}
+}
+function populateElementSelect(){ $('element').innerHTML=Object.keys(defaults).map(k=>'<option value="'+k+'">'+k+'</option>').join('')}
+function selectElement(k){
+ selected=k;$('element').value=k;const d=getStyle(k);$('text').value=d.text||'';$('fontSize').value=d.fontSize||16;$('width').value=d.width||200;$('height').value=d.height||40;$('align').value=d.align||'left';$('color').value=d.color||'#17213a';$('bg').value=d.bg||'#ffffff';$('link').value=d.link||'';$('imageUrl').value=d.imageUrl||'';
+ document.querySelectorAll('.selectable').forEach(n=>n.classList.toggle('selected',n.dataset.key===k));
+}
+function live(){
+ const d=getStyle(selected);d.text=$('text').value;d.fontSize=Math.max(8,Math.min(120,Number($('fontSize').value)||16));d.width=Math.max(30,Math.min(1200,Number($('width').value)||200));d.height=Math.max(20,Math.min(900,Number($('height').value)||40));d.align=$('align').value;d.color=$('color').value;d.bg=$('bg').value;d.link=$('link').value;d.imageUrl=$('imageUrl').value;styles[selected]=d;applyStyle(selected);selectElement(selected)}
+['element','text','fontSize','width','height','align','color','bg','link','imageUrl'].forEach(id=>$(id).addEventListener('input',live));
+document.querySelectorAll('.selectable').forEach(n=>n.addEventListener('click',()=>selectElement(n.dataset.key)));
+document.querySelectorAll('.selectable').forEach(n=>n.addEventListener('dblclick',e=>{if(n.dataset.key==='heroImage')return;const t=n.querySelector('h1,h2,h3,p,button,a')||n;t.contentEditable='true';t.focus();document.execCommand?.('selectAll',false,null);document.getSelection()?.collapseToEnd();t.addEventListener('blur',()=>{const d=getStyle(n.dataset.key);d.text=t.innerText.trim();styles[n.dataset.key]=d;t.contentEditable='false';selectElement(n.dataset.key)},{once:true})}));
+let drag=null;
+document.addEventListener('pointerdown',e=>{const h=e.target.closest('.handle');if(!h)return;const n=h.parentElement;selectElement(n.dataset.key);drag={n,key:n.dataset.key,x:e.clientX,y:e.clientY,w:n.offsetWidth,h:n.offsetHeight};e.preventDefault()});
+document.addEventListener('pointermove',e=>{if(!drag)return;const dx=e.clientX-drag.x,dy=e.clientY-drag.y;const d=getStyle(drag.key);d.width=Math.max(30,Math.round(drag.w+dx));d.height=Math.max(20,Math.round(drag.h+dy));styles[drag.key]=d;applyStyle(drag.key);selectElement(drag.key)});
+document.addEventListener('pointerup',()=>drag=null);
+$('imageFile').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('imageUrl').value=r.result;live()};r.readAsDataURL(f)});
+$('devicePc').onclick=()=>{$('canvas').classList.remove('mobile')};$('deviceMobile').onclick=()=>{$('canvas').classList.add('mobile')};
+document.querySelectorAll('[data-tab]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-tab]').forEach(x=>x.classList.remove('active'));b.classList.add('active');document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));$(b.dataset.tab).classList.add('active');$('title').textContent=b.dataset.tab==='products'?'Productos de la web':'Editor Web visual';if(b.dataset.tab==='products')renderProducts()});
+function productImage(p){return p.localImage||p.image||''}
+function renderPreview(){const box=$('previewCards');if(!box)return;box.innerHTML=products.filter(p=>p.published!==false).slice(0,8).map(p=>'<article class="card selectable" data-product="'+safe(p.id)+'"><img src="'+safe(productImage(p))+'" alt=""><h3>'+safe(p.name)+'</h3><div class="desc">'+safe(p.description)+'</div><div class="price">$'+Number(p.price||0).toLocaleString('es-AR')+'</div><button>AGREGAR AL CARRITO</button></article>').join('');box.querySelectorAll('[data-product]').forEach(n=>n.onclick=()=>editProduct(n.dataset.product))}
+function renderProducts(){
+ const q=($('productSearch').value||'').toLowerCase();const arr=products.filter(p=>(p.name||'').toLowerCase().includes(q)||(p.category||'').toLowerCase().includes(q));
+ $('productList').innerHTML=arr.map(p=>'<div class="product-item"><img src="'+safe(productImage(p))+'" alt=""><strong>'+safe(p.name)+'</strong><span class="status '+(p.published===false?'off':'')+'">'+(p.published===false?'Oculto':'Publicado')+'</span><div class="product-actions"><button class="btn" onclick="editProduct(\''+safe(p.id)+'\')">✎ Editar</button><button class="btn" onclick="toggleProduct(\''+safe(p.id)+'\')">'+(p.published===false?'Publicar':'Ocultar')+'</button></div></div>').join('')||'<p>No hay productos.</p>'
+}
+window.editProduct=id=>{const p=products.find(x=>String(x.id)===String(id));if(!p)return;editingProduct=p;const name=prompt('Nombre del producto:',p.name);if(name===null)return;const desc=prompt('Descripción:',p.description||'');if(desc===null)return;const price=prompt('Precio de venta:',p.price||'');if(price===null)return;p.name=name.trim();p.description=desc.trim();p.price=String(price).replace(/\D/g,'');const cat=prompt('Categoría:',p.category||'');if(cat!==null)p.category=cat.trim();renderProducts();renderPreview()};
+window.toggleProduct=async id=>{const p=products.find(x=>String(x.id)===String(id));if(!p)return;p.published=p.published===false;await saveProduct(p);renderProducts();renderPreview()};
+$('addProduct').onclick=()=>{const name=prompt('Nombre del nuevo producto:');if(!name)return;const id=name.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'');const p={id,name:name.trim(),description:'',price:'',stock:0,brand:'',category:'ACCESORIOS PARA CELULAR',published:true,featured:false,image:'',localImage:''};products.unshift(p);editingProduct=p;renderProducts();renderPreview();editProduct(p.id)};
+async function saveProduct(p){const row={id:String(p.id),name:p.name||'',cost:Number(p.cost)||0,price:Number(p.price)||0,stock:Number(p.stock)||0,brand:p.brand||'',description:p.description||'',category:p.category||'',published:p.published!==false,featured:!!p.featured,image:p.image||'',local_image:p.localImage||''};const r=await sb.from('products').upsert(row,{onConflict:'id'});if(r.error){alert('No se pudo guardar el producto: '+r.error.message);return false}return true}
+async function load(){
+ const session=await sb.auth.getSession();if(!session.data.session){document.body.innerHTML='<div style="padding:40px;font-family:Arial"><h2>Acceso privado</h2><p>Ingresá primero al panel Electroexe.</p></div>';return}
+ const pr=await sb.from('products').select('*').order('created_at',{ascending:true});if(pr.error){alert('No se pudieron cargar los productos: '+pr.error.message);return}
+ products=(pr.data||[]).map(p=>({id:p.id,name:p.name,description:p.description||'',price:Number(p.price)||0,cost:Number(p.cost)||0,stock:Number(p.stock)||0,brand:p.brand||'',category:p.category||'',published:p.published!==false,featured:!!p.featured,image:p.image||'',localImage:p.local_image||''}));
+ const sc=await sb.from('site_content').select('content').eq('id',SITE_ID).maybeSingle();if(!sc.error&&sc.data?.content){const c=sc.data.content;styles=c.visualStyles||{}}
+ Object.keys(defaults).forEach(k=>applyStyle(k));populateElementSelect();selectElement('heroTitle');renderProducts();renderPreview();
+}
+$('save').onclick=async()=>{
+ const payload={...styles,products:styles.products||{}};const user=(await sb.auth.getUser()).data.user;const r=await sb.from('site_content').upsert({id:SITE_ID,content:{visualStyles:styles},updated_at:new Date().toISOString(),updated_by:user?.id||null},{onConflict:'id'});if(r.error){alert('No se pudo guardar el diseño: '+r.error.message);return}
+ for(const p of products)await saveProduct(p);alert('✓ Cambios guardados en Supabase.');
+};
+$('productSearch').oninput=renderProducts;
+load();
+</script>
+</body>
+</html>
